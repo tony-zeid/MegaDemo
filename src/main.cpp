@@ -1,0 +1,212 @@
+#include <Arduino.h>
+#include "config.h"
+#include "pots.h"
+#include "dip_sw.h"
+#include "dpad.h"
+#include "imu.h"
+#include "leds.h"
+#include "segdisp.h"
+#include "motor.h"
+#include "console.h"
+
+// Select LED array function                    
+int leds_func = 0;
+// 0 - Pulse wave 
+// 1 - Something else
+
+// Select Display function            
+int disp_func = 1;
+// 0 - Individual pots control each digit
+// 1 - Read Pot 4 (0-1023) and split across 4 digits
+// 2 - Read Motor Position and display in degrees
+// 3 - Read LDR and split across 4 digits
+// 4 - Up down arrows increment (positive only)
+
+// Select Motor function     
+int motor_func = 3;          
+// 0 - Left/Right keys change direction, Up/Down keys adjust speed
+// 1 - Left/Right keys change direction, LDR gives speed boost
+// 2 - Simple speed control using Pot 4
+// 3 - Simple position control using Pot 4
+// 4 - Bidirectional speed control using Pot 4
+// 5 - Maintain upright position using IMU
+
+// Struct instances to hold data
+potset pots;    // Pot readings
+keyset dpad;    // DPAD counts
+DIPSW DIP;      // DIPSW states
+LED LEDs;       // LED set of 6
+seg segD1;      // 7SEG digit 1
+seg segD2;      // 7SEG digit 2
+seg segD3;      // 7SEG digit 3
+seg segD4;      // 7SEG digit 4
+dig4 digs;      // 4 digit block
+
+unsigned int tlast = 0;         // Time stamp
+unsigned long cycles = 0;       // Cycle count
+bool printout = 1;              // Print flag
+unsigned int tprint = 1000;     // Printing interval in ms
+
+float *ERRptr;      // Pointer to IMU error array: Acc(X,Y),Gyr(X,Y,Z)
+
+// Initialisation Functions 
+void setup() {      
+
+    // Communications
+    Serial.begin(9600);     // Initalise serial port, 9600 baud rate
+    console_init();         // Initialise command console
+
+    // Input Devices
+    pinMode(LED_BUILTIN, OUTPUT);       // Enable built-in LED
+    pinMode(resLD_pin, INPUT);          // Setup LDR pin as input
+    pots_setup();                       // Setup potentiometer pins
+    dip_sw_setup();                     // Setup DIP switch pins       
+    dpad_setup();                       // Setup Dpad pins   
+
+    // Output Devices
+    leds_setup();                       // Setup LEDs
+    segdisp_setup(&segD1, &segD2,       // Setup 7-segment display
+                  &segD3, &segD4);      
+    motor_setup();                      // Setup motor & encoder
+
+    // Inertial Measurement Unit
+    IMU_initialise();           // Initialise I2C comms and reset IMU      
+    IMU_sens_config();          // Configures sensitivity of Accel and Gyro        
+    ERRptr = IMU_error_calc();  // Measure steady-state errors for compensation      
+
+    // Print message to serial monitor to confirm setup complete
+    if (printout){
+        Serial.println("\nSetup complete");
+        Serial.print("\n");                                                                                             // !!!!!
+        Serial.print("IMU Errors:\n");
+        Serial.print("AccX: "); Serial.print(ERRptr[0]); Serial.print(",\t"); 
+        Serial.print("AxxY: "); Serial.print(ERRptr[1]); Serial.print(",\t");
+        Serial.print("GyrX: "); Serial.print(ERRptr[2]); Serial.print(",\t");
+        Serial.print("GyrY: "); Serial.print(ERRptr[3]); Serial.print(",\t");
+        Serial.print("GyrZ: "); Serial.print(ERRptr[4]); Serial.print(",\t");
+        Serial.print("\n");
+    }
+  }
+
+// Main Program Loop
+void loop() {
+
+    cycles ++;      // Increment program counter
+
+    // Read Inputs & Print to Serial
+    pots_read(&pots);                       // Read potentiometers 
+    dpad_read(&dpad);                       // Read dpad counts 
+    dip_sw_read(&DIP);                      // Read DIP switches
+    int resLD_val = analogRead(resLD_pin);  // Read input from LDR
+    float *IMUptr = IMU_read_data();        // Update IMU measurements, (R,P,Y,T,dT)                      //!!!!!
+
+    // LED Array Select Function 
+    switch(leds_func){
+        case 0:                 // Pulse wave pattern
+            leds_pulse_wave(&LEDs, millis());
+            break;
+        case 1:                 // Some other pattern
+            leds_other_pattern(&LEDs, millis());
+            break;
+        // Create new pattern functions and add here...
+    }
+    // LED Array Drive Outputs
+    leds_driver(&LEDs);         // Outputs brightness based on pattern
+
+    // 7-Segment Display Select Function
+    switch(disp_func){
+        case 0:                 // Individual pots control each digit
+            segdisp_pots(&digs, pots.pot1, pots.pot2, pots.pot3, pots.pot4);
+            break;
+        case 1:                 // Read Pot 4 (0-1023) and display across 4 digits
+            segdisp_dig4(&digs, pots.pot4);
+            break;
+        case 2:                 // Read Motor Position and display in degrees
+            segdisp_dig4(&digs, motor_pos*360/1000);
+            break;
+        case 3:                 // Read LDR and split across 4 digits
+            segdisp_dig4(&digs, resLD_val);
+            break;
+        case 4:                 // Up down arrows increment (positive only)
+            segdisp_dig4(&digs, dpad.up - dpad.down);
+            break;        
+    }
+    // 7-Segment Display Decode Digits (x4)
+    segdisp_decode(&segD1, digs.x1, digs.x1dp);     
+    segdisp_decode(&segD2, digs.x2, digs.x2dp);    
+    segdisp_decode(&segD3, digs.x3, digs.x3dp);     
+    segdisp_decode(&segD4, digs.x4, digs.x4dp);   
+    // 7-Segment Display Drive Outputs
+    segdisp_driver(&segD1, &segD2, &segD3, &segD4);
+    
+    // Motor Driver Select Run Mode
+    switch(motor_func){
+        case 0:                 // 0 - Left/Right keys change dir, Up/Down keys adjust speed
+            motor_run((dpad.right - dpad.left)%2, 50+10*(dpad.up - dpad.down));
+            break;
+        case 1:                 // Left/Right keys change dir, LDR gives speed boost
+            motor_run((dpad.right - dpad.left)%2, 30+resLD_val);
+            break;
+        case 2:                 // Simple  speed control using Pot 4 
+            motor_run(1, pots.pot4 / 4);
+            break;
+        case 3:                 // Bidirectional  speed control using Pot 4 
+            motor_run(pots.pot4 > 512, abs(512 - pots.pot4)/2);
+            break;
+        case 4:                 // Simple  position control using Pot 4 
+            motor_run(pots.pot4 > motor_pos, abs(pots.pot4 - motor_pos));
+            break;
+        case 5:                 // Maintain upright position using IMU
+            motor_run(-(IMUptr[0]*1000/360) > motor_pos, abs(-(IMUptr[0]*1000/360) - motor_pos));
+            break;
+        // Create new motor run modes and add here...       
+        // motor_run(dir [0-1], spd[0-255])
+        }
+
+    // Command Console
+    console_run(&leds_func, &disp_func, &motor_func);       // Parse and execute incomming commands
+
+    // Serial Logging of Data Values
+    if(printout){
+        // Print messages to serial monitor to display input values / states
+        Serial.print("\n");
+        Serial.print("Time: "); Serial.print(millis()); Serial.print(",\t");
+        Serial.print("Cycle: "); Serial.print(cycles); Serial.print(",\t");  
+        Serial.print("\n");
+        Serial.print("LDR: "); Serial.print(resLD_val); Serial.print(",\t");
+        Serial.print("Motor: "); Serial.print(motor_pos); Serial.print(",\t");
+        Serial.print("\n");
+        Serial.print("Pot1: "); Serial.print(pots.pot1); Serial.print(",\t");
+        Serial.print("Pot2: "); Serial.print(pots.pot2); Serial.print(",\t");        
+        Serial.print("Pot3: "); Serial.print(pots.pot3); Serial.print(",\t");
+        Serial.print("Pot4: "); Serial.print(abs(512 - pots.pot4)); Serial.print(",\t");
+        Serial.print("\n");
+        Serial.print("Sw1: "); Serial.print(DIP.sw1); Serial.print(",\t");
+        Serial.print("\tSw2: "); Serial.print(DIP.sw2); Serial.print(",\t");  
+        Serial.print("\tSw3: "); Serial.print(DIP.sw3); Serial.print(",\t"); 
+        Serial.print("\tSw4: "); Serial.print(DIP.sw4); Serial.print(",\t"); 
+        Serial.print("\n");
+        Serial.print("Left: "); Serial.print(dpad.left); Serial.print(",\t"); 
+        Serial.print("Down: "); Serial.print(dpad.down); Serial.print(",\t"); 
+        Serial.print("Up: "); Serial.print(dpad.up); Serial.print(",\t"); 
+        Serial.print("\tRight: "); Serial.print(dpad.right); Serial.print(",\t"); 
+        Serial.print("\n");
+        Serial.print("Roll: "); Serial.print(IMUptr[0]); Serial.print(",\t");
+        Serial.print("Pitch: "); Serial.print(IMUptr[1]); Serial.print(",\t");
+        Serial.print("Yaw: "); Serial.print(IMUptr[2]); Serial.print(",\t");
+        Serial.print("Tdif: "); Serial.print(IMUptr[3]); Serial.print(",\t"); 
+        Serial.print("\n");
+        Serial.print("LED1: "); Serial.print(LEDs.led1); Serial.print(",\t");
+        Serial.print("LED2: "); Serial.print(LEDs.led2); Serial.print(",\t"); 
+        Serial.print("LED3: "); Serial.print(LEDs.led3); Serial.print(",\t"); 
+        Serial.print("LED4: "); Serial.print(LEDs.led4); Serial.print(",\t"); 
+        Serial.print("\n");
+    }
+    
+    // Decide whether to print serial logs next cycle
+    if(millis() - tlast >= tprint){
+        printout = 1;
+        tlast = millis();
+    }
+    else printout = 0;
+}
