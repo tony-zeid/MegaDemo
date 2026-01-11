@@ -34,6 +34,17 @@ int motor_func = 0;
 // 5 - Bidirectional speed control using Pot 4
 // 6 - Maintain upright position using IMU
 
+// Printout / debug parameters
+bool printout_mode = 1;             // 0 - Text | 1 - Graph
+unsigned int tprint_text = 1000;    // Printing interval in ms (Serial Analyzer)
+unsigned int tprint_graph = 50;     // Printing interval in ms (Serial Monitor)
+
+// Global Variables
+unsigned long int tlast = 0;    // Time stamp
+unsigned long cycles = 0;       // Cycle count
+bool printout = 1;              // Print flag, set to 1 to print errors during setup
+float *ERRptr;      // Pointer to IMU error array: Acc(X,Y),Gyr(X,Y,Z)
+
 // Struct instances to hold data
 potset pots;    // Pot readings
 keyset dpad;    // DPAD counts
@@ -44,13 +55,6 @@ seg segD2;      // 7SEG digit 2
 seg segD3;      // 7SEG digit 3
 seg segD4;      // 7SEG digit 4
 dig4 digs;      // 4 digit block
-
-unsigned int tlast = 0;         // Time stamp
-unsigned long cycles = 0;       // Cycle count
-bool printout = 1;              // Print flag
-unsigned int tprint = 1000;     // Printing interval in ms
-
-float *ERRptr;      // Pointer to IMU error array: Acc(X,Y),Gyr(X,Y,Z)
 
 // Initialisation Functions 
 void setup() {      
@@ -77,7 +81,7 @@ void setup() {
     ERRptr = IMU_error_calc();  // Measure steady-state errors for compensation      
 
     // Print message to serial monitor to confirm setup complete
-    if (printout){
+    if (printout == 1 && printout_mode == 0){
         Serial.println("\nSetup complete");
         Serial.print("\n");                                                                                            
         Serial.print("IMU Errors:\n");
@@ -93,14 +97,14 @@ void setup() {
 // Main Program Loop
 void loop() {
 
-    cycles ++;      // Increment program counter
+    cycles ++;                  // Increment program counter
 
     // Read Inputs & Print to Serial
     pots_read(&pots);                       // Read potentiometers 
     dpad_read(&dpad);                       // Read dpad counts 
     dip_sw_read(&DIP);                      // Read DIP switches
-    int LDR_val = analogRead(LDR_pin);    // Read input from LDR
-    float *IMUptr = IMU_read_data();        // Update IMU measurements, (R,P,Y,T,dT)                      //!!!!!
+    int LDR_val = analogRead(LDR_pin);      // Read input from LDR
+    float *IMUptr = IMU_read_data();        // Update IMU measurements, (R,P,Y,T,dT)
 
     // LED Array Select Function 
     switch(leds_func){
@@ -180,45 +184,68 @@ void loop() {
 
     // Serial Logging of Data Values
     if(printout){
-        // Print messages to serial monitor to display input values / states
-        Serial.print("\n");
-        Serial.print("Time: "); Serial.print(millis()); Serial.print(",\t");
-        Serial.print("Cycle: "); Serial.print(cycles); Serial.print(",\t");  
-        Serial.print("\n");
-        Serial.print("LDR: "); Serial.print(LDR_val); Serial.print(",\t");
-        Serial.print("Motor: "); Serial.print(motor_pos); Serial.print(",\t");
-        Serial.print("\n");
-        Serial.print("Pot1: "); Serial.print(pots.pot1); Serial.print(",\t");
-        Serial.print("Pot2: "); Serial.print(pots.pot2); Serial.print(",\t");        
-        Serial.print("Pot3: "); Serial.print(pots.pot3); Serial.print(",\t");
-        Serial.print("Pot4: "); Serial.print(abs(512 - pots.pot4)); Serial.print(",\t");
-        Serial.print("\n");
-        Serial.print("Sw1: "); Serial.print(DIP.sw1); Serial.print(",\t");
-        Serial.print("\tSw2: "); Serial.print(DIP.sw2); Serial.print(",\t");  
-        Serial.print("\tSw3: "); Serial.print(DIP.sw3); Serial.print(",\t"); 
-        Serial.print("\tSw4: "); Serial.print(DIP.sw4); Serial.print(",\t"); 
-        Serial.print("\n");
-        Serial.print("Left: "); Serial.print(dpad.left); Serial.print(",\t"); 
-        Serial.print("Down: "); Serial.print(dpad.down); Serial.print(",\t"); 
-        Serial.print("Up: "); Serial.print(dpad.up); Serial.print(",\t"); 
-        Serial.print("\tRight: "); Serial.print(dpad.right); Serial.print(",\t"); 
-        Serial.print("\n");
-        Serial.print("Roll: "); Serial.print(IMUptr[0]); Serial.print(",\t");
-        Serial.print("Pitch: "); Serial.print(IMUptr[1]); Serial.print(",\t");
-        Serial.print("Yaw: "); Serial.print(IMUptr[2]); Serial.print(",\t");
-        Serial.print("Tdif: "); Serial.print(IMUptr[3]); Serial.print(",\t"); 
-        Serial.print("\n");
-        Serial.print("LED1: "); Serial.print(LEDs.led1); Serial.print(",\t");
-        Serial.print("LED2: "); Serial.print(LEDs.led2); Serial.print(",\t"); 
-        Serial.print("LED3: "); Serial.print(LEDs.led3); Serial.print(",\t"); 
-        Serial.print("LED4: "); Serial.print(LEDs.led4); Serial.print(",\t"); 
-        Serial.print("\n");
+        
+        // Verbose text printout for Serial Monitor
+        if(printout_mode == 0){
+            Serial.print("\n");
+            Serial.print("Time: "); Serial.print(millis()); Serial.print(",\t");
+            Serial.print("Cycle: "); Serial.print(cycles); Serial.print(",\t");  
+            Serial.print("\n");
+            Serial.print("LDR: "); Serial.print(LDR_val); Serial.print(",\t");
+            Serial.print("Motor: "); Serial.print(motor_pos); Serial.print(",\t");
+            Serial.print("\n");
+            Serial.print("Pot1: "); Serial.print(pots.pot1); Serial.print(",\t");
+            Serial.print("Pot2: "); Serial.print(pots.pot2); Serial.print(",\t");        
+            Serial.print("Pot3: "); Serial.print(pots.pot3); Serial.print(",\t");
+            Serial.print("Pot4: "); Serial.print(abs(512 - pots.pot4)); Serial.print(",\t");
+            Serial.print("\n");
+            Serial.print("Sw1: "); Serial.print(DIP.sw1); Serial.print(",\t");
+            Serial.print("\tSw2: "); Serial.print(DIP.sw2); Serial.print(",\t");  
+            Serial.print("\tSw3: "); Serial.print(DIP.sw3); Serial.print(",\t"); 
+            Serial.print("\tSw4: "); Serial.print(DIP.sw4); Serial.print(",\t"); 
+            Serial.print("\n");
+            Serial.print("Left: "); Serial.print(dpad.left); Serial.print(",\t"); 
+            Serial.print("Down: "); Serial.print(dpad.down); Serial.print(",\t"); 
+            Serial.print("Up: "); Serial.print(dpad.up); Serial.print(",\t"); 
+            Serial.print("\tRight: "); Serial.print(dpad.right); Serial.print(",\t"); 
+            Serial.print("\n");
+            Serial.print("Roll: "); Serial.print(IMUptr[0]); Serial.print(",\t");
+            Serial.print("Pitch: "); Serial.print(IMUptr[1]); Serial.print(",\t");
+            Serial.print("Yaw: "); Serial.print(IMUptr[2]); Serial.print(",\t");
+            Serial.print("Tdif: "); Serial.print(IMUptr[3]); Serial.print(",\t"); 
+            Serial.print("\n");
+            Serial.print("LED1: "); Serial.print(LEDs.led1); Serial.print(",\t");
+            Serial.print("LED2: "); Serial.print(LEDs.led2); Serial.print(",\t"); 
+            Serial.print("LED3: "); Serial.print(LEDs.led3); Serial.print(",\t"); 
+            Serial.print("LED4: "); Serial.print(LEDs.led4); Serial.print(",\t"); 
+            Serial.print("\n");
+        }
+        
+        // Minimal printout formatted for graphical Serial Analyzer (by CurioRes) 
+        if(printout_mode == 1){
+            Serial.print(IMUptr[0]);        // Roll
+            Serial.print(" ");
+            Serial.print(IMUptr[1]);        // Pitch
+            Serial.print(" ");
+            Serial.print(IMUptr[2]);        // Yaw
+            Serial.println();       
+        }
+
     }
-    
+
     // Decide whether to print serial logs next cycle
-    if(millis() - tlast >= tprint){
-        printout = 1;
-        tlast = millis();
+    if(printout_mode == 0){
+        if(millis() - tlast >= tprint_text){
+            printout = 1;
+            tlast = millis();
+        }
+        else printout = 0;
     }
-    else printout = 0;
+    if(printout_mode == 1){
+        if(millis() - tlast >= tprint_graph){
+            printout = 1;
+            tlast = millis();
+        }
+        else printout = 0;
+    }
 }
