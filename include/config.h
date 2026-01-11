@@ -13,7 +13,7 @@
 #define pot4_pin A3
 
 // Define pin for LDR
-#define resLD_pin A7
+#define LDR_pin A7
 
 // Define pins for DIP switches
 #define sw1_pin 46

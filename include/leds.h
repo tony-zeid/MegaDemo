@@ -10,8 +10,11 @@ typedef struct{
 }   LED;
 
 
-// Setup LEDs pins
+// Setup LED pins
 void leds_setup();
+
+// Reset LED outputs to OFF
+void leds_reset();
 
 // Drive LED outputs
 void leds_driver(LED *LEDs);

@@ -10,26 +10,29 @@
 #include "console.h"
 
 // Select LED array function                    
-int leds_func = 0;
-// 0 - Pulse wave 
-// 1 - Something else
+int leds_func = 1;
+// 0 - LEDs OFF
+// 1 - Pulse wave 
+// 2 - Something else
 
 // Select Display function            
 int disp_func = 1;
-// 0 - Individual pots control each digit
-// 1 - Read Pot 4 (0-1023) and split across 4 digits
-// 2 - Read Motor Position and display in degrees
-// 3 - Read LDR and split across 4 digits
-// 4 - Up down arrows increment (positive only)
+// 0 - Display OFF
+// 1 - Individual pots control each digit
+// 2 - Read Pot 4 (0-1023) and split across 4 digits
+// 3 - Read Motor Position and display in degrees
+// 4 - Read LDR and split across 4 digits
+// 5 - Up down arrows increment (positive only)
 
 // Select Motor function     
-int motor_func = 3;          
-// 0 - Left/Right keys change direction, Up/Down keys adjust speed
-// 1 - Left/Right keys change direction, LDR gives speed boost
-// 2 - Simple speed control using Pot 4
-// 3 - Simple position control using Pot 4
-// 4 - Bidirectional speed control using Pot 4
-// 5 - Maintain upright position using IMU
+int motor_func = 0;    
+// 0 - Motor OFF      
+// 1 - Left/Right keys change direction, Up/Down keys adjust speed
+// 2 - Left/Right keys change direction, LDR gives speed boost
+// 3 - Simple speed control using Pot 4
+// 4 - Simple position control using Pot 4
+// 5 - Bidirectional speed control using Pot 4
+// 6 - Maintain upright position using IMU
 
 // Struct instances to hold data
 potset pots;    // Pot readings
@@ -58,15 +61,14 @@ void setup() {
 
     // Input Devices
     pinMode(LED_BUILTIN, OUTPUT);       // Enable built-in LED
-    pinMode(resLD_pin, INPUT);          // Setup LDR pin as input
+    pinMode(LDR_pin, INPUT);            // Setup LDR pin as input
     pots_setup();                       // Setup potentiometer pins
     dip_sw_setup();                     // Setup DIP switch pins       
     dpad_setup();                       // Setup Dpad pins   
 
     // Output Devices
     leds_setup();                       // Setup LEDs
-    segdisp_setup(&segD1, &segD2,       // Setup 7-segment display
-                  &segD3, &segD4);      
+    segdisp_setup();                    // Setup 7-segment display
     motor_setup();                      // Setup motor & encoder
 
     // Inertial Measurement Unit
@@ -77,7 +79,7 @@ void setup() {
     // Print message to serial monitor to confirm setup complete
     if (printout){
         Serial.println("\nSetup complete");
-        Serial.print("\n");                                                                                             // !!!!!
+        Serial.print("\n");                                                                                            
         Serial.print("IMU Errors:\n");
         Serial.print("AccX: "); Serial.print(ERRptr[0]); Serial.print(",\t"); 
         Serial.print("AxxY: "); Serial.print(ERRptr[1]); Serial.print(",\t");
@@ -97,15 +99,18 @@ void loop() {
     pots_read(&pots);                       // Read potentiometers 
     dpad_read(&dpad);                       // Read dpad counts 
     dip_sw_read(&DIP);                      // Read DIP switches
-    int resLD_val = analogRead(resLD_pin);  // Read input from LDR
+    int LDR_val = analogRead(LDR_pin);    // Read input from LDR
     float *IMUptr = IMU_read_data();        // Update IMU measurements, (R,P,Y,T,dT)                      //!!!!!
 
     // LED Array Select Function 
     switch(leds_func){
-        case 0:                 // Pulse wave pattern
+        case 0:                 // LEDs OFF
+            leds_reset();         
+            break;
+        case 1:                 // Pulse wave pattern
             leds_pulse_wave(&LEDs, millis());
             break;
-        case 1:                 // Some other pattern
+        case 2:                 // Some other pattern
             leds_other_pattern(&LEDs, millis());
             break;
         // Create new pattern functions and add here...
@@ -115,22 +120,26 @@ void loop() {
 
     // 7-Segment Display Select Function
     switch(disp_func){
-        case 0:                 // Individual pots control each digit
+        case 0:                 // Display OFF
+            segdisp_reset();
+            break;
+        case 1:                 // Individual pots control each digit
             segdisp_pots(&digs, pots.pot1, pots.pot2, pots.pot3, pots.pot4);
             break;
-        case 1:                 // Read Pot 4 (0-1023) and display across 4 digits
+        case 2:                 // Read Pot 4 (0-1023) and display across 4 digits
             segdisp_dig4(&digs, pots.pot4);
             break;
-        case 2:                 // Read Motor Position and display in degrees
+        case 3:                 // Read Motor Position and display in degrees
             segdisp_dig4(&digs, motor_pos*360/1000);
             break;
-        case 3:                 // Read LDR and split across 4 digits
-            segdisp_dig4(&digs, resLD_val);
+        case 4:                 // Read LDR and split across 4 digits
+            segdisp_dig4(&digs, LDR_val);
             break;
-        case 4:                 // Up down arrows increment (positive only)
+        case 5:                 // Up down arrows increment (positive only)
             segdisp_dig4(&digs, dpad.up - dpad.down);
             break;        
     }
+
     // 7-Segment Display Decode Digits (x4)
     segdisp_decode(&segD1, digs.x1, digs.x1dp);     
     segdisp_decode(&segD2, digs.x2, digs.x2dp);    
@@ -141,22 +150,25 @@ void loop() {
     
     // Motor Driver Select Run Mode
     switch(motor_func){
-        case 0:                 // 0 - Left/Right keys change dir, Up/Down keys adjust speed
+        case 0:                 // Motor OFF
+            motor_run(0, 0);
+            break;
+        case 1:                 // Left/Right keys change dir, Up/Down keys adjust speed
             motor_run((dpad.right - dpad.left)%2, 50+10*(dpad.up - dpad.down));
             break;
-        case 1:                 // Left/Right keys change dir, LDR gives speed boost
-            motor_run((dpad.right - dpad.left)%2, 30+resLD_val);
+        case 2:                 // Left/Right keys change dir, LDR gives speed boost
+            motor_run((dpad.right - dpad.left)%2, 30+LDR_val);
             break;
-        case 2:                 // Simple  speed control using Pot 4 
+        case 3:                 // Simple  speed control using Pot 4 
             motor_run(1, pots.pot4 / 4);
             break;
-        case 3:                 // Bidirectional  speed control using Pot 4 
+        case 4:                 // Bidirectional  speed control using Pot 4 
             motor_run(pots.pot4 > 512, abs(512 - pots.pot4)/2);
             break;
-        case 4:                 // Simple  position control using Pot 4 
+        case 5:                 // Simple  position control using Pot 4 
             motor_run(pots.pot4 > motor_pos, abs(pots.pot4 - motor_pos));
             break;
-        case 5:                 // Maintain upright position using IMU
+        case 6:                 // Maintain upright position using IMU
             motor_run(-(IMUptr[0]*1000/360) > motor_pos, abs(-(IMUptr[0]*1000/360) - motor_pos));
             break;
         // Create new motor run modes and add here...       
@@ -173,7 +185,7 @@ void loop() {
         Serial.print("Time: "); Serial.print(millis()); Serial.print(",\t");
         Serial.print("Cycle: "); Serial.print(cycles); Serial.print(",\t");  
         Serial.print("\n");
-        Serial.print("LDR: "); Serial.print(resLD_val); Serial.print(",\t");
+        Serial.print("LDR: "); Serial.print(LDR_val); Serial.print(",\t");
         Serial.print("Motor: "); Serial.print(motor_pos); Serial.print(",\t");
         Serial.print("\n");
         Serial.print("Pot1: "); Serial.print(pots.pot1); Serial.print(",\t");

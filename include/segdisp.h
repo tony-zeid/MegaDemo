@@ -27,7 +27,10 @@ typedef struct{
 }   dig4;
 
 // Setup 7-segment display 
-void segdisp_setup(seg *segD1, seg *segD2, seg *segD3, seg *segD4);
+void segdisp_setup();
+
+// Reset 7-segment display to OFF
+void segdisp_reset();
 
 // 7 - Segment Display Decode Digits
 void segdisp_decode(seg *segDX, byte digit, bool dp);

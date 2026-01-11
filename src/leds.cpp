@@ -2,7 +2,7 @@
 #include "config.h"
 #include "leds.h"
 
-// Setup LEDs pins
+// Setup LED pins
 void leds_setup(){
 
     // Pin modes for LED array
@@ -10,7 +10,13 @@ void leds_setup(){
     pinMode(led2_pin, OUTPUT);
     pinMode(led3_pin, OUTPUT);
     pinMode(led4_pin, OUTPUT);
-    
+
+    // Reset LEDs
+    leds_reset();
+}
+ 
+// Reset LED outputs to OFF
+void leds_reset(){
     // Active low set high to disable by default
     analogWrite(led1_pin, HIGH);
     analogWrite(led2_pin, HIGH);

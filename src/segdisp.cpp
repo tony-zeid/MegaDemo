@@ -3,7 +3,7 @@
 #include "segdisp.h"
 
 // Setup 7-segment display pins
-void segdisp_setup(seg *segD1, seg *segD2, seg *segD3, seg *segD4){
+void segdisp_setup(){
 
     // Pin modes for 7-segment display
     pinMode(dispA, OUTPUT);
@@ -19,6 +19,11 @@ void segdisp_setup(seg *segD1, seg *segD2, seg *segD3, seg *segD4){
     pinMode(dispD3, OUTPUT);
     pinMode(dispD4, OUTPUT);
 
+    // Reset display
+    segdisp_reset();
+}
+// Reset 7-segment display to OFF
+void segdisp_reset(){
     // Active low set high to disable by default
     digitalWrite(dispD1, HIGH);
     digitalWrite(dispD2, HIGH);
