@@ -4,6 +4,22 @@
 String inputString = "";     // A string to hold incoming data
 bool stringComplete = false; // Whether the string is complete
 
+namespace {
+// Simple numeric parser to see when input is not a number
+bool parseNumber(const String &arg, int &value) {
+    if (arg.length() == 0) {
+        return false;
+    }
+    for (unsigned int i = 0; i < arg.length(); i++) {
+        if (!isDigit(arg[i])) {
+            return false;
+        }
+    }
+    value = arg.toInt();
+    return true;
+}
+}
+
 void console_init(){
     // Reserve memory to avoid fragmentation
     inputString.reserve(200); 
@@ -41,17 +57,17 @@ void serialEvent() {
 
 // Command handler
 void handleCommand(String command, String arg, int *leds_func, int *disp_func, int *motor_func) {
-    command.toLowerCase(); // Normalize to lowercase
+    command.toLowerCase(); // Normalise to lowercase
     if (command == "status") {
         command_status();
     } else if (command == "led") {
         command_led(arg);
     } else if (command == "leds") {
-        command_ledfunc(arg, &leds_func);
+        command_ledfunc(arg, leds_func);
     } else if (command == "disp") {
-        command_dispfunc(arg, &disp_func);
+        command_dispfunc(arg, disp_func);
     } else if (command == "mot") {
-        command_motorfunc(arg, &motor_func);
+        command_motorfunc(arg, motor_func);
     } else {
         Serial.println("Unknown command");
     }
@@ -76,77 +92,72 @@ void command_led(String arg){
 }
 
 // Sets LED array function
-void command_ledfunc(String arg, int **leds_func){
-    if (arg == "0") {
-        **leds_func = 0;
-        Serial.print("LED function: ");
-        Serial.println(arg);
-    } else if (arg == "1") {
-        **leds_func = 1;
-        Serial.print("LED function: ");
-        Serial.println(arg);
-    } else if (arg == "2") {
-        **leds_func = 2;
-        Serial.print("LED function: ");
-        Serial.println(arg);
-    } else {
-        Serial.println("Unknown argument");
+void command_ledfunc(String arg, int *leds_func){
+    int value = 0;
+    if (!parseNumber(arg, value)) {
+        Serial.println("Please provide a number");
+        return;
+    }
+
+    switch (value) {
+        case 0:
+        case 1:
+        case 2:
+            *leds_func = value;
+            Serial.print("LED function: ");
+            Serial.println(value);
+            break;
+        default:
+            Serial.println("Unknown argument");
+            break;
     }
 }
 
 // Sets display function
-void command_dispfunc(String arg, int **disp_func){
-    if (arg == "0") {
-        **disp_func = 0;
-        Serial.print("7SEG function: ");
-        Serial.println(arg);
-    } else if (arg == "1") {
-        **disp_func = 1;
-        Serial.print("7SEG function: ");
-        Serial.println(arg);
-    } else if (arg == "2") {
-        **disp_func = 2;
-        Serial.print("7SEG function: ");
-        Serial.println(arg);
-    } else if (arg == "3") {
-        **disp_func = 3;
-        Serial.print("7SEG function: ");
-        Serial.println(arg);
-    } else if (arg == "4") {
-        **disp_func = 4;
-        Serial.print("7SEG function: ");
-        Serial.println(arg);
-    } else {
-        Serial.println("Unknown argument");
+void command_dispfunc(String arg, int *disp_func){
+    int value = 0;
+    if (!parseNumber(arg, value)) {
+        Serial.println("Please provide a number");
+        return;
+    }
+
+    switch (value) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+            *disp_func = value;
+            Serial.print("7SEG function: ");
+            Serial.println(value);
+            break;
+        default:
+            Serial.println("Unknown argument");
+            break;
     }
 }
 // Sets motor function
-void command_motorfunc(String arg, int **motor_func){
-    if (arg == "0") {
-        **motor_func = 0;
-        Serial.print("Motor function: ");
-        Serial.println(arg);
-    } else if (arg == "1") {
-        **motor_func = 1;
-        Serial.print("Motor function: ");
-        Serial.println(arg);
-    } else if (arg == "2") {
-        **motor_func = 2;
-        Serial.print("Motor function: ");
-        Serial.println(arg);
-    } else if (arg == "3") {
-        **motor_func = 3;
-        Serial.print("Motor function: ");
-        Serial.println(arg);
-    } else if (arg == "4") {
-        **motor_func = 4;
-        Serial.print("Motor function: ");
-        Serial.println(arg);
-    } else if (arg == "5") {
-        **motor_func = 5;
-        Serial.print("Motor function: ");
-        Serial.println(arg);
-    } else {
-        Serial.println("Unknown argument");
+void command_motorfunc(String arg, int *motor_func){
+    int value = 0;
+    if (!parseNumber(arg, value)) {
+        Serial.println("Please provide a number");
+        return;
+    }
+
+    switch (value) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+            *motor_func = value;
+            Serial.print("Motor function: ");
+            Serial.println(value);
+            break;
+        default:
+            Serial.println("Unknown argument");
+            break;
     }
 }
